@@ -1,15 +1,16 @@
 {
-  "name": "old-news",
+  "name": "happy-news",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "micro",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
   "author": "Oskar Karlsson <kontakta@oskarkarlsson.nu>",
   "license": "MIT",
   "dependencies": {
-    "micro": "^7.0.6"
+    "chance": "^1.0.6",
+    "restify": "^4.3.0",
+    "web-push": "^3.2.2"
   }
 }

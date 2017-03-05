@@ -1,5 +1,23 @@
-const sleep = time => new Promise(resolve => setTimeout(resolve, time));
-const randomSleep = () => sleep(Math.floor(Math.random() * 1000));
+const restify = require('restify');
+const webpush = require('web-push');
+const Chance = require('chance');
+const chance = new Chance();
+
+if (['HAPPY_NEWS_TOKEN', 'PUBLIC_KEY', 'PRIVATE_KEY', 'GCM_API_KEY'].some(key => !process.env[key])) {
+  throw new Error('You must set all env keys!');
+}
+
+const vapidKeys = {
+    publicKey: process.env.PUBLIC_KEY,
+    privateKey: process.env.PRIVATE_KEY
+};
+
+webpush.setGCMAPIKey(process.env.GCM_API_KEY);
+webpush.setVapidDetails(
+    'mailto:kontakta@oskarkarlsson.nu',
+    vapidKeys.publicKey,
+    vapidKeys.privateKey
+);
 
 const news = [ { title: 'Farmer spends 16 years studying law by himself so he could sue a powerful chemical firm for \'polluting his land\' - and he wins the first round',
     text: 'Ad molestiae ipsum consectetur et eius.Quos doloremque quaerat impedit animi ipsam ducimus corporis reiciendis.Qui nesciunt et cupiditate praesentium.',
@@ -77,7 +95,84 @@ const news = [ { title: 'Farmer spends 16 years studying law by himself so he co
     text: 'Ad molestiae ipsum consectetur et eius.Quos doloremque quaerat impedit animi ipsam ducimus corporis reiciendis.Qui nesciunt et cupiditate praesentium.',
     image: 'https://i.redditmedia.com/TixIknKPu3TFpUo7-gPn4AJO2N2JyDeyqlYabix1Brg.jpg?s=fdc5e68411dcfb1876c9a721178054a0' } ];
 
-module.exports = async (req, res) => {
-  await randomSleep();
-  return news;
-};
+const sleep = time => new Promise(resolve => setTimeout(resolve, time));
+const randomSleep = () => sleep(Math.floor(Math.random() * 3000));
+const registeredSubscribers = new Map(); // Will be forgotten
+
+function newsDetail(req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const singleNews = news[req.params.id];
+
+  if (!singleNews) {
+    return next(new restify.errors.ResourceNotFoundError());
+  }
+
+  randomSleep().then(() => {
+    res.send(Object.assign({}, singleNews, { text: chance.paragraph({sentences: 10}) }));
+    next();
+  });
+}
+
+function allNews(req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const currentMinute = (new Date()).getMinutes();
+  const newNews = news.map((n, id) => Object.assign(n, { id }));
+  const startIndex = currentMinute % newNews.length;
+  let partNewsList = newNews.slice(startIndex, startIndex + 15);
+  if (partNewsList.length < 15) {
+    partNewsList = [...partNewsList, ...newNews.slice(0, 15 - partNewsList.length)];
+  }
+
+  randomSleep().then(() => {
+    res.send(partNewsList.reverse());
+    next();
+  });
+}
+
+function register(req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const body = req.body;
+  
+  const isBodyOK = body && (['endpoint', 'auth', 'p256dh'].every(key => typeof body[key] === 'string'));
+  if (isBodyOK) {
+    registeredSubscribers.set(body.p256dh, {
+      endpoint: body.endpoint,
+      keys: {
+        auth: body.auth,
+        p256dh: body.p256dh
+      }
+    });
+    res.send({msg: 'OK'});
+    next();
+  } else {
+    return next(new restify.errors.BadRequestError());
+  }
+}
+
+function sendNotifications(req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const body = req.body;
+  
+  const isBodyOK = body && body.message;
+  const isAuthenticated = body.token === process.env.HAPPY_NEWS_TOKEN;
+  if (isBodyOK) {
+    registeredSubscribers.forEach(subscription => {
+      webpush.sendNotification(subscription, JSON.stringify(body.message));
+    });
+    res.send({msg: 'OK'});
+    next();
+  } else {
+    return next(new restify.errors.BadRequestError());
+  }
+}
+
+const server = restify.createServer();
+server.use(restify.bodyParser());
+server.get('/', allNews);
+server.get('/:id', newsDetail);
+server.post('/register', register);
+server.post('/push', sendNotifications);
+
+server.listen(3000, () => {
+  console.log('%s listening at %s', server.name, server.url);
+});
