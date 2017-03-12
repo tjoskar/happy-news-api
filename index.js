@@ -129,6 +129,27 @@ function allNews(req, res, next) {
   });
 }
 
+function notify(req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const body = req.body;
+
+  const isBodyOK = body && body.endpoint && body.keys && body.keys.p256dh && body.keys.auth;
+  if (isBodyOK) {
+    const subscription = {
+      endpoint: body.endpoint,
+      keys: body.keys
+    };
+    webpush.sendNotification(subscription, String(body.articleId))
+      .then(() => {
+        res.send({msg: 'OK'});
+        next();
+      })
+      .catch(error => next(new Error(error)));
+  } else {
+    return next(new restify.errors.BadRequestError());
+  }
+}
+
 function register(req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const body = req.body;
@@ -172,6 +193,7 @@ server.get('/', allNews);
 server.get('/:id', newsDetail);
 server.post('/register', register);
 server.post('/push', sendNotifications);
+server.post('/notify', notify);
 
 server.listen(3000, () => {
   console.log('%s listening at %s', server.name, server.url);
