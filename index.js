@@ -96,7 +96,7 @@ const news = [ { title: 'Farmer spends 16 years studying law by himself so he co
     image: 'https://i.redditmedia.com/TixIknKPu3TFpUo7-gPn4AJO2N2JyDeyqlYabix1Brg.jpg?s=fdc5e68411dcfb1876c9a721178054a0' } ];
 
 const sleep = time => new Promise(resolve => setTimeout(resolve, time));
-const randomSleep = () => sleep(Math.floor(Math.random() * 3000));
+const randomSleep = () => sleep(Math.floor(Math.random() * 5000));
 const registeredSubscribers = new Map(); // Will be forgotten
 
 function newsDetail(req, res, next) {
